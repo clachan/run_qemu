@@ -5,15 +5,15 @@
 # default config
 : "${builddir:=./qbuild}"
 rootpw="root"
-rootfssize="8G"
+rootfssize="16G"
 nvme_size="1G"
 pmem_size="16384"  #in MiB
 pmem_label_size=2  #in MiB
 pmem_final_size="$((pmem_size + pmem_label_size))"
 : "${qemu:=qemu-system-x86_64}"
 : "${gdb:=gdb}"
-: "${distro:=fedora}"
-: "${rev:=33}"
+: "${distro:=opensuse}"
+: "${rev:=tumbleweed}"
 : "${ndctl:=$(readlink -f ~/git/ndctl)}"
 mkosi_bin="mkosi"
 mkosi_opts=("-i" "-f")
@@ -548,6 +548,7 @@ make_rootfs()
 	rootfs_script="${script_dir}/${distro}_rootfs.sh"
 	# shellcheck source=fedora_rootfs.sh
 	# shellcheck source=arch_rootfs.sh
+	# shellcheck source=opensuse_rootfs.sh
 	[ -f "$rootfs_script" ] && source "$rootfs_script" mkosi.extra/
 
 	cp -Lr ~/.bash* mkosi.extra/root/
@@ -580,9 +581,9 @@ make_rootfs()
 	setup_autorun "mkosi.extra"
 
 	mkosi_ver="$("$mkosi_bin" --version | awk '/mkosi/{ print $2 }')"
-	if (( mkosi_ver >= 9 )); then
-		mkosi_opts+=("--autologin")
-	fi
+#	if (( mkosi_ver >= 9 )); then
+#		mkosi_opts+=("--autologin")
+#	fi
 	mkosi_opts+=("build")
 	if (( _arg_quiet < 3 )); then
 		echo "running: $mkosi_bin ${mkosi_opts[*]}"
@@ -728,6 +729,7 @@ build_kernel_cmdline()
 		"console=ttyS0"
 		"root=/dev/sda2"
 		"ignore_loglevel"
+		"nokaslr"
 		"rw"
 	)
 	if [[ $_arg_cxl == "on" ]]; then
@@ -903,6 +905,8 @@ prepare_qcmd()
 
 	qcmd+=("-device" "e1000,netdev=net0,mac=$mac_addr")
 	qcmd+=("-netdev" "user,id=net0,hostfwd=tcp::$hostport-:22")
+
+	qcmd+=("-virtfs" "local,path=/var/home/clayc,mount_tag=clayc,security_model=mapped")
 
 	if [[ $_arg_cxl == "on" ]]; then
 		# Create a single host bridge with a single root port, and a

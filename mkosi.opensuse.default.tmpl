@@ -1,0 +1,52 @@
+[Distribution]
+Distribution=@OS_DISTRO@
+Release=@OS_RELEASE@
+
+[Partitions]
+RootSize=@ROOT_SIZE@
+
+[Output]
+Format=raw_gpt
+Bootable=yes
+BootProtocols=uefi
+Output=@ROOT_FS@
+
+[Packages]
+BuildPackages=make gcc
+Packages=
+  util-linux
+  systemd
+  jq
+  ndctl
+  sudo
+  zypper
+  make
+  gcc
+  perl
+  python3
+  vim
+  lsof
+  git-core
+  tar
+  bash-completion
+  numactl
+  fio
+  strace
+  acpica
+  autoconf
+  automake
+  uuid
+  hostname
+  gdb
+  tree
+  htop
+  iputils
+  iptables 
+  iproute2
+  bpftrace
+  bpftrace-tools
+  wicked
+  wicked-service
+
+[Validation]
+Password=@ROOT_PASS@
