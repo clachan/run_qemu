@@ -729,6 +729,7 @@ build_kernel_cmdline()
 		"root=/dev/sda2"
 		"ignore_loglevel"
 		"rw"
+		"nokaslr"
 	)
 	if [[ $_arg_cxl == "on" ]]; then
 		kcmd+=( 
