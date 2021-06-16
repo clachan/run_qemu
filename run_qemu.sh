@@ -714,8 +714,9 @@ options_from_file()
 
 	test -f "$file" || return
 	# unmatch lines starting with a '#' for comments
+	# unmatch blank lines
 	# lstrip and rstrip any whitespace
-	awk '!/^#/{ gsub(/^[ \t]+|[ \t]+$/, ""); print }' "$file"
+	awk '!/^#|^$/{ gsub(/^[ \t]+|[ \t]+$/, ""); print }' "$file"
 }
 
 build_kernel_cmdline()
@@ -923,8 +924,8 @@ prepare_qcmd()
 		pxb_cxl_subcmd+=",memdev[0]=cxl-mem1"
 		qcmd+=("-device" "$pxb_cxl_subcmd")
 
-		qcmd+=("-device" "cxl-rp,id=rp0,bus=cxl.0,addr=0.0,chassis=0,slot=0")
-		qcmd+=("-device" "cxl-rp,id=rp1,bus=cxl.0,addr=1.0,chassis=0,slot=1")
+		qcmd+=("-device" "cxl-rp,id=rp0,bus=cxl.0,addr=0.0,chassis=0,slot=0,port=0")
+		qcmd+=("-device" "cxl-rp,id=rp1,bus=cxl.0,addr=1.0,chassis=0,slot=1,port=1")
 		qcmd+=("-device" "cxl-type3,bus=rp0,memdev=cxl-mem1,id=cxl-pmem0,size=$cxl_t3_size,lsa=cxl-label1")
 		qcmd+=("-device" "cxl-type3,bus=rp1,memdev=cxl-mem1,id=cxl-pmem1,size=$cxl_t3_size,lsa=cxl-label2")
 	fi
