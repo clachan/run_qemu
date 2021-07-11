@@ -5,7 +5,7 @@
 # default config
 : "${builddir:=./qbuild}"
 rootpw="root"
-rootfssize="8G"
+rootfssize="16G"
 nvme_size="1G"
 pmem_size="16384"  #in MiB
 pmem_label_size=2  #in MiB
@@ -53,6 +53,23 @@ cxl_label_size="1K"
 num_build_cpus="$(($(getconf _NPROCESSORS_ONLN) + 1))"
 rsync_opts=("--delete" "--exclude=.git/" "-L" "-r")
 
+script_dir="$(cd "$(dirname "$(readlink -e "${BASH_SOURCE[0]}")")" && pwd)"
+parser_generator="${script_dir}/parser_generator.m4"
+parser_lib="${script_dir}/run_qemu_parser.sh"
+if [ ! -e "$parser_lib" ] || [ "$parser_generator" -nt "$parser_lib" ]; then
+	if command -V argbash > /dev/null; then
+		argbash --strip user-content "$parser_generator" -o "$parser_lib"
+	else
+		fail "error: please install argbash"
+	fi
+fi
+# shellcheck source=run_qemu_parser.sh
+. "${script_dir}/run_qemu_parser.sh" || fail "Couldn't find $parser_lib"
+
+# revise qemu and ndctl base on _arg_vp_workspace
+qemu="$_arg_vp_workspace/qemu/build/qemu-system-x86_64"
+ndctl="$(readlink -f $_arg_vp_workspace/ndctl)"
+
 qemu_dir=$(dirname "$(dirname "$qemu")")
 if [[ $qemu_dir != . ]]; then
 	qemu_img="$qemu_dir/qemu-img"
@@ -70,19 +87,6 @@ fail()
 	printf "%s\n" "$*"
 	exit 1
 }
-
-script_dir="$(cd "$(dirname "$(readlink -e "${BASH_SOURCE[0]}")")" && pwd)"
-parser_generator="${script_dir}/parser_generator.m4"
-parser_lib="${script_dir}/run_qemu_parser.sh"
-if [ ! -e "$parser_lib" ] || [ "$parser_generator" -nt "$parser_lib" ]; then
-	if command -V argbash > /dev/null; then
-		argbash --strip user-content "$parser_generator" -o "$parser_lib"
-	else
-		fail "error: please install argbash"
-	fi
-fi
-# shellcheck source=run_qemu_parser.sh
-. "${script_dir}/run_qemu_parser.sh" || fail "Couldn't find $parser_lib"
 
 cxl_test_script="$script_dir/rq_cxl_tests.sh"
 cxl_results_script="$script_dir/rq_cxl_results.sh"
@@ -225,13 +229,13 @@ process_options_logic()
 		_arg_git_qemu="on"
 	fi
 	if [[ $_arg_git_qemu == "on" ]]; then
-		qemu=~/git/qemu/x86_64-softmmu/qemu-system-x86_64
-		qemu_img=~/git/qemu/qemu-img
-		qmp=~/git/qemu/scripts/qmp/qmp-shell
+		qemu=$_arg_vp_workspace/qemu/x86_64-softmmu/qemu-system-x86_64
+		qemu_img=$_arg_vp_workspace/qemu/qemu-img
+		qmp=$_arg_vp_workspace/qemu/scripts/qmp/qmp-shell
 		# upstream changed where binaries go recently
 		if [ ! -f "$qemu_img" ]; then
-			qemu=~/git/qemu/build/qemu-system-x86_64
-			qemu_img=~/git/qemu/build/qemu-img
+			qemu=$_arg_vp_workspace/qemu/build/qemu-system-x86_64
+			qemu_img=$_arg_vp_workspace/qemu/build/qemu-img
 		fi
 		if [ ! -x "$qemu" ]; then
 			fail "expected to find $qemu"
@@ -324,6 +328,7 @@ __build_kernel()
 	kver=$(make kernelrelease)
 	test -n "$kver"
 	make -j"$num_build_cpus"
+	make scripts_gdb
 	if [[ $_arg_nfit_test == "on" ]]; then
 		test_path="tools/testing/nvdimm"
 
@@ -554,8 +559,8 @@ make_rootfs()
 	cp -Lr ~/.bash* mkosi.extra/root/
 	rsync "${rsync_opts[@]}" ~/.vim* mkosi.extra/root/
 	mkdir -p mkosi.extra/root/bin
-	if [ -d ~/git/extra-scripts ]; then
-		rsync "${rsync_opts[@]}" ~/git/extra-scripts/bin/* mkosi.extra/root/bin/
+	if [ -d $_arg_vp_workspace/extra-scripts ]; then
+		rsync "${rsync_opts[@]}" $_arg_vp_workspace/extra-scripts/bin/* mkosi.extra/root/bin/
 	fi
 	if [ -d "$ndctl" ]; then
 		rsync "${rsync_opts[@]}" "$ndctl/" mkosi.extra/root/ndctl
@@ -782,7 +787,16 @@ get_ovmf_binaries()
 		rm -f OVMF_*.fd
 	fi
 	if ! [ -e "OVMF_CODE.fd" ] && ! [ -e "OVMF_VARS.fd" ]; then
-		wget -O edk2-ovmf.tar.zst https://www.archlinux.org/packages/extra/any/edk2-ovmf/download/
+		if ! [ -e "$HOME/git/edk2/Build/OvmfX64/DEBUG_GCC5/FV/OVMF_CODE.fd" ] ||
+		   ! [ -e "$HOME/git/edk2/Build/OvmfX64/DEBUG_GCC5/FV/OVMF_VARS.fd" ]; then
+			echo "OVMF_CODE.fd and/or OVMF_VARS.fd not found! Please build OVMF first!"
+			return 1
+		else
+			cp $HOME/git/edk2/Build/OvmfX64/DEBUG_GCC5/FV/OVMF_CODE.fd .
+			cp $HOME/git/edk2/Build/OvmfX64/DEBUG_GCC5/FV/OVMF_VARS.fd .
+			return 0
+		fi
+		# wget -O edk2-ovmf.tar.zst https://www.archlinux.org/packages/extra/any/edk2-ovmf/download/
 	else
 		# Binaries are already there.
 		return 0
@@ -978,6 +992,9 @@ prepare_qcmd()
 	if [[ $_arg_hmat == "on" ]]; then
 		qemu_setup_hmat
 	fi
+
+	qcmd+=("-fsdev" "local,id=fs0,path=$HOME,security_model=passthrough")
+	qcmd+=("-device" "virtio-9p-pci,fsdev=fs0,mount_tag=host_share,bus=pcie.0")
 
 	if [[ $_arg_cmdline == "on" ]]; then
 		set +x

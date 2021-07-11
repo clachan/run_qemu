@@ -4,6 +4,7 @@
 echo "This is just a parsing library template, not the library - pass this file to 'argbash' to fix this." >&2
 exit 11  #)Created by argbash-init v2.9.0
 # Rearrange the order of options below according to what you would like to see in the help message.
+# ARG_OPTIONAL_SINGLE([vp-workspace], , [top-level workspace directory for virtplat], [~/git])
 # ARG_OPTIONAL_SINGLE([rootfs], , [Non-default rootfs image to use], [root.img])
 # ARG_OPTIONAL_SINGLE([rebuild], [r], [Choose one of:\n wipe: wipe builddir, removing package cache\n img: rebuild rootfs from scratch and kernel\n kmod: rebuild kernel, update rootfs modules\n none: just inject hmat and start qemu\n], [kmod])
 # ARG_OPTIONAL_SINGLE([nvmes], , [Number of NVMe devices to attach], [0])
