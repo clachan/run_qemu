@@ -912,8 +912,18 @@ prepare_qcmd()
 	[[ $mac_lower =~ (..)(..)(..) ]] && guestmac+=("${BASH_REMATCH[@]:1}")
 	mac_addr=$(IFS=:; echo "${guestmac[*]}")
 
-	qcmd+=("-device" "e1000,netdev=net0,mac=$mac_addr")
+	qcmd+=("-device" "virtio-net-pci,netdev=net0,mac=$mac_addr")
 	qcmd+=("-netdev" "user,id=net0,hostfwd=tcp::$hostport-:22")
+
+	if [[ $_arg_rdma == "on" ]]; then
+		mac_lower2=$(printf "%06x" "$((_arg_instance + 0x234567))")
+		guestmac2=("52" "54" "00")
+		[[ $mac_lower2 =~ (..)(..)(..) ]] && guestmac2+=("${BASH_REMATCH[@]:1}")
+		mac_addr2=$(IFS=:; echo "${guestmac2[*]}")
+
+		qcmd+=("-device" "virtio-net-pci,netdev=net1,mac=$mac_addr2")
+		qcmd+=("-netdev" "socket,mcast=230.0.0.1:1234,id=net1")
+	fi
 
 	if [[ $_arg_cxl == "on" ]]; then
 		# Create a single host bridge with a single root port, and a
