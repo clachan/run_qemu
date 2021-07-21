@@ -1,1 +1,1 @@
-net.ifnames=0 biosdevname=0
+net.ifnames=0 nokaslr
